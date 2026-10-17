@@ -48,6 +48,7 @@ import {
 	type ListedAgentDefinition,
 	type SubagentSessionMode,
 } from "../../maestro/core/roles/discovery.ts";
+import { hostCli } from "../../maestro/core/host-cli.ts";
 import {
 	buildAuthenticatedModelCatalog,
 	getAuthenticatedTaskPreferences,
@@ -224,8 +225,7 @@ const SubagentParams = Type.Object({
 	task: Type.String({ description: "Task/prompt for the sub-agent" }),
 	agent: Type.Optional(
 		Type.String({
-			description:
-				"Role definition name to load defaults from. Discovery precedence is project .pi/agents, global ~/.pi/agent/agents, then installed role packs; this extension ships no roles. A missing name fails before launch. Omit for a bare agent.",
+			description: `Role definition name to load defaults from. Discovery precedence is project ${hostCli().configDirName}/agents, global ~/${hostCli().configDirName}/agent/agents, then installed role packs; this extension ships no roles. A missing name fails before launch. Omit for a bare agent.`,
 		}),
 	),
 	systemPrompt: Type.Optional(
@@ -398,7 +398,7 @@ function parseInitStartRequest(raw: any):
 }
 
 function missingRoleMessage(agentName: string): string {
-	return `Agent "${agentName}" was not found. pi-herdr-agents ships no roles: define it in .pi/agents or the global agents directory, install a role pack that provides it, or omit agent for a bare launch.`;
+	return `Agent "${agentName}" was not found. pi-herdr-agents ships no roles: define it in ${hostCli().configDirName}/agents or the global agents directory, install a role pack that provides it, or omit agent for a bare launch.`;
 }
 
 function formatAgentSource(agent: ListedAgentDefinition): string {
@@ -624,7 +624,7 @@ function boundResultPresentation(body: string, sessionRef: string): string {
 
 function formatSessionReference(sessionFile?: string): string {
 	return sessionFile
-		? `\n\nSession: ${sessionFile}\nResume: pi --session ${sessionFile}`
+		? `\n\nSession: ${sessionFile}\nResume: ${hostCli().binary} ${hostCli().sessionFlag} ${sessionFile}`
 		: "";
 }
 
@@ -2378,7 +2378,7 @@ function deliverPiCompletion(
 		const worktreeRef = result.worktree
 			? `\n\n${formatWorktreeHandoff(result.worktree)}`
 			: "";
-		const sessionRef = `\n\nSession: ${result.sessionFile}\nResume: pi --session ${result.sessionFile}`;
+		const sessionRef = `\n\nSession: ${result.sessionFile}\nResume: ${hostCli().binary} ${hostCli().sessionFlag} ${result.sessionFile}`;
 		const details: SubagentPingDetails = {
 			name: result.ping.name,
 			message: result.ping.message,
@@ -3768,7 +3768,10 @@ export default function subagentsExtension(
 							theme.fg("dim", `Session: ${details.sessionFile}`),
 						);
 						contentLines.push(
-							theme.fg("dim", `Resume:  pi --session ${details.sessionFile}`),
+							theme.fg(
+								"dim",
+								`Resume:  ${hostCli().binary} ${hostCli().sessionFlag} ${details.sessionFile}`,
+							),
 						);
 					}
 				} else {

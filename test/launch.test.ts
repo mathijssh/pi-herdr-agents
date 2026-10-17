@@ -32,6 +32,7 @@ import {
 	readSubagentSessionPolicy,
 	writeSubagentSessionPolicy,
 } from "../maestro/adapters/pi/session.ts";
+import { HOST_CLI_ENV } from "../maestro/core/host-cli.ts";
 
 function expectedShellQuote(value: string): string {
 	return `'${value.replaceAll("'", "'\\''")}'`;
@@ -361,6 +362,36 @@ describe("Pi launch", () => {
 				false,
 				JSON.stringify(process),
 			);
+		}
+	});
+
+	it("an Oh My Pi host expects an omp child process, not pi", () => {
+		const read = () => new Map([[PI_LAUNCH_SESSION_ENV, "/tmp/child.jsonl"]]);
+		const child = {
+			pid: 42,
+			name: "omp",
+			argv0: "/nix/store/x-omp/lib/omp/omp",
+			cwd: "/repo",
+		};
+		const previous = process.env[HOST_CLI_ENV];
+		process.env[HOST_CLI_ENV] = "omp";
+		try {
+			assert.equal(
+				isExpectedPiProcess(child, "/tmp/child.jsonl", "/repo", read),
+				true,
+			);
+			assert.equal(
+				isExpectedPiProcess(
+					{ ...child, name: "pi", argv0: "pi" },
+					"/tmp/child.jsonl",
+					"/repo",
+					read,
+				),
+				false,
+			);
+		} finally {
+			if (previous === undefined) delete process.env[HOST_CLI_ENV];
+			else process.env[HOST_CLI_ENV] = previous;
 		}
 	});
 
@@ -1269,6 +1300,52 @@ describe("Pi launch", () => {
 				if (previousAgentDir === undefined)
 					delete process.env.PI_CODING_AGENT_DIR;
 				else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+			}
+		});
+	});
+
+	it("resumes an Oh My Pi child with omp --resume on the seeded session file", async () => {
+		await withFixture(async ({ root, project, sessionDir }) => {
+			const sessionFile = join(root, "child.jsonl");
+			writeFileSync(
+				sessionFile,
+				JSON.stringify({ type: "session", id: "child", cwd: project }) + "\n",
+			);
+			writePublicResumePolicy(sessionFile);
+			const previous = process.env[HOST_CLI_ENV];
+			process.env[HOST_CLI_ENV] = "omp";
+			try {
+				let command = "";
+				await launchPiSubagent(
+					{
+						kind: "resume",
+						id: "resume-omp",
+						name: "Resume worker",
+						sessionFile,
+						parent: { sessionId: "parent", sessionDir },
+					},
+					{
+						worktree: createWorktreeOperations(),
+						createPane: () => "pane-resume",
+						createWorktree() {
+							throw new Error("a resume must not create a worktree");
+						},
+						async waitForShellReady() {},
+						runScript(_surface, value, options) {
+							command = value;
+							return options.scriptPath;
+						},
+						closePane() {},
+					},
+				);
+				assert.ok(
+					command.includes(`omp --resume ${expectedShellQuote(sessionFile)} `),
+					command,
+				);
+				assert.doesNotMatch(command, /(^|\s)pi --session/);
+			} finally {
+				if (previous === undefined) delete process.env[HOST_CLI_ENV];
+				else process.env[HOST_CLI_ENV] = previous;
 			}
 		});
 	});

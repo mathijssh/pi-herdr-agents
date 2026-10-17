@@ -1,12 +1,12 @@
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { defaultAgentDir } from "../../maestro/core/host-cli.ts";
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export function getAgentConfigDir(): string {
-	return process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
+	return defaultAgentDir();
 }
 
 export function getSubagentsConfigDir(): string {

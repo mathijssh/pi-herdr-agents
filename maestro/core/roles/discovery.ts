@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
 import { isString } from "../config/type-guards.ts";
 import { isThinkingLevel, type ThinkingLevel } from "../routing.ts";
 import type { Role } from "../types.ts";
+import { hostCli } from "../host-cli.ts";
 
 export type SubagentSessionMode = "standalone" | "lineage-only" | "fork";
 
@@ -543,7 +544,7 @@ export function discoverAgentCatalog(
 	}
 
 	addDirectory(join(options.agentConfigDir, "agents"), "global");
-	addDirectory(join(options.cwd, ".pi", "agents"), "project");
+	addDirectory(join(options.cwd, hostCli().configDirName, "agents"), "project");
 
 	return { agents: [...agents.values()], diagnostics };
 }

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { homedir } from "node:os";
+import { defaultAgentDir, hostCli } from "../../core/host-cli.ts";
 import { fileURLToPath } from "node:url";
 import { getSubagentActivityFile } from "./activity-file.ts";
 import {
@@ -221,8 +221,9 @@ export function isExpectedPiProcess(
 	cwd: string,
 	readEnvironment: ProcessEnvironmentReader = readLinuxProcessEnvironment,
 ): boolean {
+	const binary = hostCli().binary;
 	return (
-		(process.name === "pi" || process.argv0?.split("/").pop() === "pi") &&
+		(process.name === binary || process.argv0?.split("/").pop() === binary) &&
 		process.cwd === cwd &&
 		readEnvironment(process.pid)?.get(PI_LAUNCH_SESSION_ENV) === sessionFile
 	);
@@ -540,10 +541,7 @@ async function launchFreshPiSubagent(
 
 function resolveLaunchRequest(request: FreshPiLaunchRequest): ResolvedLaunch {
 	const id = request.id ?? Math.random().toString(16).slice(2, 10);
-	const agentDir =
-		request.parent.agentDir ??
-		process.env.PI_CODING_AGENT_DIR ??
-		join(homedir(), ".pi", "agent");
+	const agentDir = request.parent.agentDir ?? defaultAgentDir();
 	const rawCwd = request.cwd ?? request.behavior.cwd;
 	const cwdBase =
 		request.cwd == null && request.behavior.cwd != null
@@ -554,7 +552,9 @@ function resolveLaunchRequest(request: FreshPiLaunchRequest): ResolvedLaunch {
 			? rawCwd
 			: join(cwdBase, rawCwd)
 		: request.parent.cwd;
-	const localAgentDir = rawCwd ? join(sourceCwd, ".pi", "agent") : null;
+	const localAgentDir = rawCwd
+		? join(sourceCwd, hostCli().configDirName, "agent")
+		: null;
 	let sessionMode: SubagentSessionMode = request.behavior.sessionMode;
 	if (request.fork === true) sessionMode = "fork";
 	else if (request.fork === false) sessionMode = "standalone";
@@ -655,7 +655,7 @@ async function prepareLaunchSurface(
 		...ownership,
 		...worktree,
 	});
-	const isolatedAgentDir = join(created.path, ".pi", "agent");
+	const isolatedAgentDir = join(created.path, hostCli().configDirName, "agent");
 	const hasIsolatedAgentDir = existsSync(isolatedAgentDir);
 	return {
 		surface: created.paneId,
@@ -781,7 +781,10 @@ function prepareTaskArtifacts(
 				handoffMessage,
 			},
 		);
-	} else if (resolved.sessionMode !== "standalone") {
+	} else if (
+		resolved.sessionMode !== "standalone" ||
+		!hostCli().createsMissingSession
+	) {
 		seedSubagentSessionFile({
 			mode: resolved.sessionMode,
 			parentSessionFile: request.parent.sessionFile,
@@ -836,9 +839,10 @@ function buildPiCommand(
 	artifacts: PreparedArtifacts,
 ): string {
 	const { request } = resolved;
+	const cli = hostCli();
 	const parts = [
-		"pi",
-		"--session",
+		cli.binary,
+		cli.sessionFlag,
 		shellQuote(artifacts.sessionFile),
 		...(request.handoff
 			? []
@@ -1072,8 +1076,8 @@ async function launchResumedPiSubagent(
 		);
 		const command = [
 			...env,
-			"pi",
-			"--session",
+			hostCli().binary,
+			hostCli().sessionFlag,
 			shellQuote(request.sessionFile),
 			...(toolAllowlist ? ["--tools", shellQuote(toolAllowlist)] : []),
 			"-e",

@@ -63,6 +63,22 @@ pi
 
 Restart or `/reload` Pi after installation. Review package source before you install any Pi package.
 
+### Oh My Pi
+
+This fork also runs under [Oh My Pi](https://github.com/can1357/oh-my-pi) (`omp`). Link a checkout, then start `omp` inside Herdr:
+
+```bash
+omp plugin link /path/to/pi-herdr-agents
+```
+
+The host is detected from the running executable, and children run under the same CLI as the parent. Under `omp`:
+
+- children launch as `omp --resume <session-file>`. The extension seeds every child session file first, because `omp --resume` refuses a missing one;
+- configuration, sessions and global roles live under `~/.omp/agent` (or `$PI_CODING_AGENT_DIR`), and project roles under `.omp/agents`;
+- resume hints print `omp --resume <file>`.
+
+Set `PI_HERDR_AGENTS_CLI=pi` or `PI_HERDR_AGENTS_CLI=omp` to override detection.
+
 ### Optional methodology pack
 
 The optional [pi-herdr-clean-craft](https://github.com/giuseppecrj/pi-herdr-clean-craft) pack provides six explicit-only skills. Its `craft-mode` hub coordinates TDD, refactoring, architecture review, quality audits, and mutation testing. It supplies instructions, not roles or an execution runtime.

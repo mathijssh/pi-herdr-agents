@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
+import { defaultAgentDir, hostCli } from "../../core/host-cli.ts";
 import type {
 	HarnessAdapter,
 	ResumeOptions,
@@ -137,7 +137,7 @@ export class PiHarnessAdapter implements HarnessAdapter {
 	}
 	isAvailable(): boolean {
 		try {
-			execFileSync("pi", ["--version"], { stdio: "ignore" });
+			execFileSync(hostCli().binary, ["--version"], { stdio: "ignore" });
 			return true;
 		} catch {
 			return false;
@@ -267,9 +267,7 @@ export class PiHarnessAdapter implements HarnessAdapter {
 		const rawCwd = cwd ?? roleCwd;
 		const cwdBase =
 			cwd == null && roleCwd != null
-				? (this.options.parent.agentDir ??
-					process.env.PI_CODING_AGENT_DIR ??
-					join(homedir(), ".pi", "agent"))
+				? (this.options.parent.agentDir ?? defaultAgentDir())
 				: (this.options.parent.invocationCwd ?? this.options.parent.cwd);
 		return this.track(
 			child,

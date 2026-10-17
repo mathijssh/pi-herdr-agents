@@ -43,10 +43,14 @@ export interface MessageEntry extends SessionEntry {
 		}>;
 		stopReason?: string;
 		errorMessage?: string;
+		/** Set on assistant messages: the provider and model that answered. */
+		provider?: string;
+		model?: string;
 	};
 }
 
-export type SeededSubagentSessionMode = "lineage-only" | "fork";
+/** `standalone` writes a bare header for CLIs that only open an existing session file. */
+export type SeededSubagentSessionMode = "standalone" | "lineage-only" | "fork";
 
 export interface WorktreeSessionFork {
 	sessionFile: string;
@@ -602,14 +606,15 @@ export function seedSubagentSessionFile(params: {
 	childSessionFile: string;
 	childCwd: string;
 }): void {
-	const header = {
+	const header: JsonObject = {
 		type: "session",
 		version: 3,
 		id: randomUUID(),
 		timestamp: new Date().toISOString(),
 		cwd: params.childCwd,
-		parentSession: params.parentSessionFile,
 	};
+	if (params.mode !== "standalone")
+		header.parentSession = params.parentSessionFile;
 	const contentLines =
 		params.mode === "fork" ? getForkContentLines(params.parentSessionFile) : [];
 	const lines = [JSON.stringify(header), ...contentLines];
@@ -824,7 +829,13 @@ export interface ObservedSessionRuntime {
 	thinking?: string;
 }
 
-/** Read the effective model and thinking entries recorded by Pi at session startup. */
+/**
+ * Read the effective model and thinking recorded in a session, latest first.
+ * Pi records `provider` and `modelId`; Oh My Pi records one `provider/modelId`
+ * `model`. An assistant message names the model that actually answered, which
+ * covers Oh My Pi resuming a seeded session: `--model` applies there without a
+ * new `model_change`, so a forked child would otherwise report the parent's model.
+ */
 export function findObservedSessionRuntime(
 	entries: SessionEntry[],
 ): ObservedSessionRuntime {
@@ -833,6 +844,24 @@ export function findObservedSessionRuntime(
 		if (entry.type === "model_change") {
 			if (isString(entry.provider)) observed.provider = entry.provider;
 			if (isString(entry.modelId)) observed.modelId = entry.modelId;
+			if (isString(entry.model)) {
+				const slash = entry.model.indexOf("/");
+				if (slash > 0) {
+					observed.provider = entry.model.slice(0, slash);
+					observed.modelId = entry.model.slice(slash + 1);
+				}
+			}
+		} else if (entry.type === "message") {
+			// SAFETY: entries with type "message" always carry a `message` field.
+			const { message } = entry as MessageEntry;
+			if (
+				message.role === "assistant" &&
+				isString(message.provider) &&
+				isString(message.model)
+			) {
+				observed.provider = message.provider;
+				observed.modelId = message.model;
+			}
 		} else if (
 			entry.type === "thinking_level_change" &&
 			isString(entry.thinkingLevel)

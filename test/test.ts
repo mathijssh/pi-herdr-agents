@@ -2873,6 +2873,30 @@ describe("session.ts", () => {
 				{ provider: "other", modelId: "new", thinking: "medium" },
 			);
 		});
+
+		it("reports the model that answered an Oh My Pi fork, not the copied parent model_change", () => {
+			assert.deepEqual(
+				findObservedSessionRuntime([
+					{
+						type: "model_change",
+						id: "m1",
+						model: "anthropic/claude-sonnet-5-5",
+					},
+					{ type: "thinking_level_change", id: "t1", thinkingLevel: "medium" },
+					{
+						type: "message",
+						id: "a1",
+						message: {
+							role: "assistant",
+							content: [{ type: "text", text: "ok" }],
+							provider: "openrouter",
+							model: "z-ai/glm-5.2",
+						},
+					},
+				]),
+				{ provider: "openrouter", modelId: "z-ai/glm-5.2", thinking: "medium" },
+			);
+		});
 	});
 
 	describe("appendBranchSummary", () => {

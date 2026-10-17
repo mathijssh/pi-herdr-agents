@@ -3,7 +3,10 @@
  * - Shows agent identity + available tools as a compact styled widget above the editor
  * - Provides a `subagent_done` tool for interactive agents to self-terminate
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { writeFileSync } from "node:fs";
@@ -19,6 +22,7 @@ import {
 	writeProcessIdentityRecord,
 } from "../process-identity.ts";
 import { isString } from "../../../core/config/type-guards.ts";
+import { hostCli } from "../../../core/host-cli.ts";
 
 export function shouldMarkUserTookOver(agentStarted: boolean): boolean {
 	return agentStarted;
@@ -248,7 +252,12 @@ export default function (pi: ExtensionAPI) {
 		recorder.agentStart();
 	});
 
-	pi.on("agent_end", (event) => {
+	// Oh My Pi emits no agent_settled. Its agent_end carries `willContinue: true`
+	// while a retry, compaction or queued follow-up keeps the run going, so the
+	// last agent_end without it is the settled point.
+	const settlesOnAgentEnd = hostCli().binary === "omp";
+
+	pi.on("agent_end", (event, ctx) => {
 		latestAgentMessages = event.messages;
 		recorder.agentEndWaiting();
 		if (autoExit) {
@@ -256,9 +265,13 @@ export default function (pi: ExtensionAPI) {
 			// the latest agent turn completed normally, not by who initiated it.
 			userTookOver = false;
 		}
+		const willContinue = "willContinue" in event && event.willContinue === true;
+		if (settlesOnAgentEnd && !willContinue) settle(ctx);
 	});
 
-	pi.on("agent_settled", (_event, ctx) => {
+	pi.on("agent_settled", (_event, ctx) => settle(ctx));
+
+	function settle(ctx: ExtensionContext): void {
 		if (persistent && !completionFinalized) {
 			let messages = latestAgentMessages;
 			try {
@@ -314,7 +327,7 @@ export default function (pi: ExtensionAPI) {
 
 		recorder.agentEndDone();
 		ctx.shutdown();
-	});
+	}
 
 	pi.on("turn_start", (event) => {
 		recorder.turnStart(event.turnIndex);
