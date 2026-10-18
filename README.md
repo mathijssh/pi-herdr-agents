@@ -76,6 +76,7 @@ The host is detected from the running executable, and children run under the sam
 - children launch as `omp --resume <session-file>`. The extension seeds every child session file first, because `omp --resume` refuses a missing one;
 - configuration, sessions and global roles live under `~/.omp/agent` (or `$PI_CODING_AGENT_DIR`), and project roles under `.omp/agents`;
 - resume hints print `omp --resume <file>`.
+- children load `maestro/adapters/pi/child/omp-child.yml` through `--config`, which sets `collab.autoStart: off`, so a child never opens a collab room of its own even when your config shares every session. The parent's room is unaffected; a worktree handoff, which continues your own session, keeps your setting.
 
 Set `PI_HERDR_AGENTS_CLI=pi` or `PI_HERDR_AGENTS_CLI=omp` to override detection.
 

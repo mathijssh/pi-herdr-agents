@@ -1,0 +1,6 @@
+# Config overlay for Oh My Pi children (`omp --config <this file>`).
+# A child must not open its own collab room: with `collab.autoStart` set,
+# every child would otherwise appear as a separate shared session to collab
+# guests such as Paseo. The parent's own room is unaffected.
+collab:
+  autoStart: "off"

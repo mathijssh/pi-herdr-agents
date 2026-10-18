@@ -40,6 +40,11 @@ import {
 } from "./session.ts";
 
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
+/** Oh My Pi children load this overlay so they never open a collab room of their own. */
+const OMP_CHILD_CONFIG_ARGS = [
+	"--config",
+	shellQuote(join(SUBAGENTS_DIR, "child", "omp-child.yml")),
+];
 
 type SubagentSessionMode = "standalone" | "lineage-only" | "fork";
 
@@ -846,7 +851,11 @@ function buildPiCommand(
 		shellQuote(artifacts.sessionFile),
 		...(request.handoff
 			? []
-			: ["-e", shellQuote(join(SUBAGENTS_DIR, "child", "subagent-done.ts"))]),
+			: [
+					"-e",
+					shellQuote(join(SUBAGENTS_DIR, "child", "subagent-done.ts")),
+					...(cli.binary === "omp" ? OMP_CHILD_CONFIG_ARGS : []),
+				]),
 		"--model",
 		shellQuote(request.runtimePlan.model),
 		"--thinking",
@@ -1074,11 +1083,13 @@ async function launchResumedPiSubagent(
 			policy.tools?.join(","),
 			autoExit,
 		);
+		const cli = hostCli();
 		const command = [
 			...env,
-			hostCli().binary,
-			hostCli().sessionFlag,
+			cli.binary,
+			cli.sessionFlag,
 			shellQuote(request.sessionFile),
+			...(cli.binary === "omp" ? OMP_CHILD_CONFIG_ARGS : []),
 			...(toolAllowlist ? ["--tools", shellQuote(toolAllowlist)] : []),
 			"-e",
 			shellQuote(join(SUBAGENTS_DIR, "child", "subagent-done.ts")),

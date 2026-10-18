@@ -1343,6 +1343,10 @@ describe("Pi launch", () => {
 					command,
 				);
 				assert.doesNotMatch(command, /(^|\s)pi --session/);
+				// An omp child must not open a collab room of its own.
+				const overlay = command.match(/--config '([^']+)'/)?.[1];
+				assert.ok(overlay, command);
+				assert.match(readFileSync(overlay, "utf8"), /autoStart: "off"/);
 			} finally {
 				if (previous === undefined) delete process.env[HOST_CLI_ENV];
 				else process.env[HOST_CLI_ENV] = previous;
